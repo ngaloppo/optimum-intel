@@ -215,55 +215,15 @@ class OVQuantizer(OptimumQuantizer):
         calibration_dataloader = self._get_calibration_dataloader(
             calibration_dataset=calibration_dataset,
             batch_size=batch_size,
-            remove_unused_columns=False,
+            remove_unused_columns=remove_unused_columns,
             data_collator=data_collator,
         )
 
         # Prefeth past_key_values
         self.model.compile()
         subset_size = kwargs.get("subset_size", 300)
-        data_cache = []
-
-        # class InferRequestWrapper:
-        #     def __init__(self, request):
-        #         self.request = request
-
-        #     def __call__(self, *args, **kwargs):
-        #         data_cache.append(*args)
-        #         return self.request(*args, *kwargs)
-
-        #     def infer(self, inputs: Any = None, shared_memory: bool = False):
-        #         data_cache.append(inputs)
-        #         return self.request.infer(inputs, shared_memory)
-
-        #     def start_async(
-        #         self,
-        #         inputs: Any = None,
-        #         userdata: Any = None,
-        #         shared_memory: bool = False,
-        #     ):
-        #         data_cache.append(inputs)
-        #         self.request.infer(inputs, shared_memory)
-
-        #     def wait(self):
-        #         pass
-
-        #     def get_tensor(self, name: str):
-        #         return Tensor(self.request.results[name])
-
-        #     def __getattr__(self, attr):
-        #         if attr in self.__dict__:
-        #             return getattr(self, attr)
-        #         return getattr(self.request, attr)
-
-        # self.model.request = InferRequestWrapper(self.model.request)
-        # for _, data in enumerate(calibration_dataloader):
-        #     self.model.generate(**data, max_new_tokens=100)
-        #     if len(data_cache) >= subset_size:
-        #         break
-        # self.model.request = self.model.request.request
+        
         def transform_fn(x):
-            #inputs = self.model.prepare_inputs_for_generation(x)
             inputs = self.model.prepare_inputs(**x)
             return inputs
 
