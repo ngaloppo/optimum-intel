@@ -262,6 +262,46 @@ class OVModelForCausalLM(OVBaseDecoderModel, GenerationMixin):
             checkpoint="gpt2",
         )
     )
+    
+    def prepare_inputs(
+        self,
+        input_ids: torch.LongTensor,
+        attention_mask: Optional[torch.LongTensor] = None,
+        past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
+    ) -> Dict:
+        inputs = {}
+        if past_key_values is not None:
+            # Flatten the past_key_values
+            past_key_values = tuple(
+                past_key_value for pkv_per_layer in past_key_values for past_key_value in pkv_per_layer
+            )
+            # Add the past_key_values to the decoder inputs
+            inputs = dict(zip(self.key_value_input_names, past_key_values))
+
+        # Create empty past_key_values for decoder_with_past first generation step
+        elif self.use_cache:
+            shape_input_ids = input_ids.shape
+            num_attention_heads = (
+                self.normalized_config.num_attention_heads if self.config.model_type == "bloom" else 1
+            )
+            for input_name in self.key_value_input_names:
+                model_inputs = self.model.input(input_name)
+                shape = model_inputs.get_partial_shape()
+                shape[0] = shape_input_ids[0] * num_attention_heads
+                if shape[2].is_dynamic:
+                    shape[2] = 0
+                if shape[1].is_dynamic:
+                    shape[1] = 0
+                inputs[input_name] = Tensor(model_inputs.get_element_type(), shape.get_shape())
+
+        inputs["input_ids"] = np.array(input_ids)
+
+        # Add the attention_mask inputs when needed
+        if "attention_mask" in self.input_names and attention_mask is not None:
+            inputs["attention_mask"] = np.array(attention_mask)
+            
+        return inputs
+    
     def forward(
         self,
         input_ids: torch.LongTensor,
