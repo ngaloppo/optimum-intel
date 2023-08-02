@@ -25,11 +25,13 @@ import transformers
 from accelerate.data_loader import DataLoaderStateMixin
 from datasets import Dataset, load_dataset
 from nncf import NNCFConfig
+from nncf import compress_weights
 from nncf.torch import create_compressed_model, register_default_init_args
 from nncf.torch.dynamic_graph.io_handling import wrap_nncf_model_inputs_with_objwalk
 from nncf.torch.initialization import PTInitializingDataLoader
 from openvino._offline_transformations import compress_quantize_weights_transformation
 from openvino.runtime import Core, Tensor
+from openvino import convert_model
 from torch.utils.data import DataLoader, RandomSampler, TensorDataset
 from transformers import DataCollator, PreTrainedModel, default_data_collator
 
@@ -343,37 +345,33 @@ class OVQuantizer(OptimumQuantizer):
             task=self.task,
             model_type=model_type,
         )
-
-        if weights_only:
-            calibration_dataset = TensorDataset(torch.tensor([0.0, 1.0]))
-            calibration_dataset.column_names = []
-            remove_unused_columns = False
-            onnx_config = onnx_config_class(self.model.config)
-
-            def data_collator(batch):
-                return onnx_config.generate_dummy_inputs(framework="pt")
-
-        calibration_dataloader = self._get_calibration_dataloader(
-            calibration_dataset=calibration_dataset,
-            batch_size=batch_size,
-            remove_unused_columns=remove_unused_columns,
-            data_collator=data_collator,
-        )
-
+        
         if quantization_config is None:
             logger.info(
                 "No configuration describing the quantization process was provided, a default OVConfig will be generated."
             )
-            quantization_config = OVConfig(compression=INT8_WEIGHT_COMPRESSION_CONFIG) if weights_only else OVConfig()
+            quantization_config = OVConfig()
 
-        model_inputs = next(iter(calibration_dataloader))
-        quantization_config.add_input_info(model_inputs)
-        nncf_config = NNCFConfig.from_dict(quantization_config.__dict__)
-        nncf_config = register_default_init_args(nncf_config, calibration_dataloader)
-        controller, compressed_model = create_compressed_model(
-            self.model, nncf_config, wrap_inputs_fn=wrap_nncf_model_inputs_with_objwalk
-        )
-        compressed_model = controller.strip(do_copy=False)
+        if weights_only:
+            compressed_model = compress_weights(self.model)
+            print(compressed_model)
+            self.model = compressed_model
+        else:
+            calibration_dataloader = self._get_calibration_dataloader(
+                calibration_dataset=calibration_dataset,
+                batch_size=batch_size,
+                remove_unused_columns=remove_unused_columns,
+                data_collator=data_collator,
+            )
+
+            model_inputs = next(iter(calibration_dataloader))
+            quantization_config.add_input_info(model_inputs)
+            nncf_config = NNCFConfig.from_dict(quantization_config.__dict__)
+            nncf_config = register_default_init_args(nncf_config, calibration_dataloader)
+            controller, compressed_model = create_compressed_model(
+                self.model, nncf_config, wrap_inputs_fn=wrap_nncf_model_inputs_with_objwalk
+            )
+            compressed_model = controller.strip(do_copy=False)
 
         task = self.task
         model = self.model
@@ -384,32 +382,15 @@ class OVQuantizer(OptimumQuantizer):
         else:
             onnx_config = onnx_config_class(model.config)
 
-        onnx_path = save_directory / ONNX_WEIGHTS_NAME
-
-        # Export the model to the ONNX format
-        opset = min(onnx_config.DEFAULT_ONNX_OPSET, MAX_ONNX_OPSET)
-        opset = max(opset, MIN_ONNX_QDQ_OPSET)
-        export(
-            model=compressed_model,
-            config=onnx_config,
-            opset=opset,
-            output=onnx_path,
-        )
-
-        # Load and save the compressed model
-        model = core.read_model(onnx_path)
+        compressed_model.config.torchscript = True
+        dummy_inputs = onnx_config.generate_dummy_inputs(framework="pt")
+        model = convert_model(compressed_model, example_input=dummy_inputs)
         self._save_pretrained(model, output_path)
         quantization_config.save_pretrained(save_directory)
-        if not quantization_config.save_onnx_model:
-            os.remove(onnx_path)
-            try:
-                os.remove(f"{onnx_path}_data")
-            except FileNotFoundError:
-                pass
 
     @staticmethod
     def _save_pretrained(model: openvino.runtime.Model, output_path: str):
-        compress_quantize_weights_transformation(model)
+        #compress_quantize_weights_transformation(model)
         openvino.runtime.serialize(model, output_path)
 
     def _set_task(self):
