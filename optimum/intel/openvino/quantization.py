@@ -29,11 +29,13 @@ from nncf import compress_weights
 from nncf.torch import create_compressed_model, register_default_init_args
 from nncf.torch.dynamic_graph.io_handling import wrap_nncf_model_inputs_with_objwalk
 from nncf.torch.initialization import PTInitializingDataLoader
+from nncf.torch import register_module
 from openvino._offline_transformations import compress_quantize_weights_transformation
 from openvino.runtime import Core, Tensor
 from openvino import convert_model
 from torch.utils.data import DataLoader, RandomSampler, TensorDataset
 from transformers import DataCollator, PreTrainedModel, default_data_collator
+from transformers.pytorch_utils import Conv1D
 
 from optimum.exporters.onnx import export
 from optimum.exporters.tasks import TasksManager
@@ -50,6 +52,7 @@ from .utils import (
     OV_XML_FILE_NAME,
 )
 
+register_module(ignored_algorithms=[])(Conv1D)
 
 core = Core()
 logger = logging.getLogger(__name__)
