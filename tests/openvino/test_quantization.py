@@ -147,7 +147,11 @@ class OVWeightCompressionTest(unittest.TestCase):
     # TODO : add models
     SUPPORTED_ARCHITECTURES_WITH_EXPECTED_COMPRESSED_MATMULS = (
         (OVModelForSequenceClassification, "hf-internal-testing/tiny-random-bert", 39),
-        (OVModelForCausalLM, "hf-internal-testing/tiny-random-gpt2", 5), #(OVModelForCausalLM, "hf-internal-testing/tiny-random-GPTNeoModel", 5),
+        (
+            OVModelForCausalLM,
+            "hf-internal-testing/tiny-random-gpt2",
+            5,
+        ),  # (OVModelForCausalLM, "hf-internal-testing/tiny-random-GPTNeoModel", 5),
     )
 
     @parameterized.expand(SUPPORTED_ARCHITECTURES_WITH_EXPECTED_COMPRESSED_MATMULS)
@@ -174,10 +178,10 @@ class OVWeightCompressionTest(unittest.TestCase):
             self.assertTrue("logits" in outputs)
 
             # Verify that that the configuration is correctly saved and loaded
-            #expected_config = OVConfig(compression=INT8_WEIGHT_COMPRESSION_CONFIG)
+            # expected_config = OVConfig(compression=INT8_WEIGHT_COMPRESSION_CONFIG)
             loaded_config = OVConfig.from_pretrained(tmp_folder)
             self.assertIsNotNone(loaded_config)
-            #self.assertEqual(expected_config.to_dict()["compression"], loaded_config.to_dict()["compression"])
+            # self.assertEqual(expected_config.to_dict()["compression"], loaded_config.to_dict()["compression"])
 
 
 class OVQuantizerQATest(unittest.TestCase):

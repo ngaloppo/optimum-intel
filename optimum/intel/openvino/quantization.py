@@ -14,7 +14,6 @@
 
 import inspect
 import logging
-import os
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Tuple, Union
 
@@ -24,33 +23,27 @@ import torch
 import transformers
 from accelerate.data_loader import DataLoaderStateMixin
 from datasets import Dataset, load_dataset
-from nncf import NNCFConfig
-from nncf import compress_weights
-from nncf.torch import create_compressed_model, register_default_init_args
+from nncf import NNCFConfig, compress_weights
+from nncf.torch import create_compressed_model, register_default_init_args, register_module
 from nncf.torch.dynamic_graph.io_handling import wrap_nncf_model_inputs_with_objwalk
 from nncf.torch.initialization import PTInitializingDataLoader
-from nncf.torch import register_module
-from openvino._offline_transformations import compress_quantize_weights_transformation
-from openvino.runtime import Core, Tensor
 from openvino import convert_model
-from torch.utils.data import DataLoader, RandomSampler, TensorDataset
+from openvino.runtime import Core, Tensor
+from torch.utils.data import DataLoader, RandomSampler
 from transformers import DataCollator, PreTrainedModel, default_data_collator
 from transformers.pytorch_utils import Conv1D
 
-from optimum.exporters.onnx import export
 from optimum.exporters.tasks import TasksManager
 from optimum.quantization_base import OptimumQuantizer
 
 from ..utils.constant import _TASK_ALIASES
-from .configuration import INT8_WEIGHT_COMPRESSION_CONFIG, OVConfig
+from .configuration import OVConfig
 from .modeling_base import OVBaseModel
 from .modeling_decoder import OVBaseDecoderModel
 from .utils import (
-    MAX_ONNX_OPSET,
-    MIN_ONNX_QDQ_OPSET,
-    ONNX_WEIGHTS_NAME,
     OV_XML_FILE_NAME,
 )
+
 
 register_module(ignored_algorithms=[])(Conv1D)
 
@@ -348,7 +341,7 @@ class OVQuantizer(OptimumQuantizer):
             task=self.task,
             model_type=model_type,
         )
-        
+
         if quantization_config is None:
             logger.info(
                 "No configuration describing the quantization process was provided, a default OVConfig will be generated."
@@ -393,7 +386,7 @@ class OVQuantizer(OptimumQuantizer):
 
     @staticmethod
     def _save_pretrained(model: openvino.runtime.Model, output_path: str):
-        #compress_quantize_weights_transformation(model)
+        # compress_quantize_weights_transformation(model)
         openvino.runtime.serialize(model, output_path)
 
     def _set_task(self):
