@@ -88,6 +88,22 @@ text = "He's a dreadful magician."
 outputs = cls_pipe(text)
 ```
 
+
+
+```diff
+- from diffusers import StableDiffusionXLPipeline
++ from optimum.intel import OVStableDiffusionXLPipeline
+
+  model_id = "stabilityai/stable-diffusion-xl-base-1.0"
+- pipeline = StableDiffusionXLPipeline.from_pretrained(model_id)
++ pipeline = OVStableDiffusionXLPipeline.from_pretrained(model_id)
+  prompt = "medieval castle painted by Caspar David Friedrich"
+  image = pipeline(prompt).images[0]
+```
+
+
+
+
 #### Post-training static quantization:
 
 Post-training static quantization introduces an additional calibration step where data is fed through the network in order to compute the activations quantization parameters. Here is an example on how to apply static quantization on a fine-tuned DistilBERT.
